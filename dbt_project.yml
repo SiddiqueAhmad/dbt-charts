@@ -1,0 +1,23 @@
+name: 'dbt_charts_lab'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_charts_lab'
+
+model-paths: ['models']
+seed-paths: ['seeds']
+test-paths: ['tests']
+macro-paths: ['macros']
+
+target-path: 'target'
+clean-targets:
+  - 'target'
+  - 'dbt_packages'
+
+models:
+  dbt_charts_lab:
+    +materialized: table
+
+seeds:
+  dbt_charts_lab:
+    +schema: main
