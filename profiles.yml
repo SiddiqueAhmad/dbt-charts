@@ -1,0 +1,10 @@
+dbt_charts_lab:
+  outputs:
+    dev:
+      type: duckdb
+      path: data/chart_lab.duckdb
+      schema: main
+      threads: 1
+      config_options:
+        enable_external_access: true
+  target: dev
