@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-and-render:
@@ -46,14 +46,47 @@ jobs:
       - name: Validate compiled queries against DuckDB
         run: dct validate charts --warehouse --project-dir .
 
-      - name: Render chart gallery to HTML
+      - name: Render chart gallery assets
         run: |
-          mkdir -p renders
+          mkdir -p renders assets
+
           dct render charts/chart_gallery.yml \
             --format html \
             --output renders/chart_gallery.html \
             --project-dir .
+
+          dct render charts/chart_gallery.yml \
+            --format png \
+            --output assets/chart_gallery.png \
+            --project-dir .
+
           test -s renders/chart_gallery.html
+          test -s assets/chart_gallery.png
+
+      - name: Create social preview crop
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          source = Path('assets/chart_gallery.png')
+          target = Path('assets/social_preview.png')
+
+          image = Image.open(source)
+          width, height = image.size
+
+          # 4:5 portrait works well on LinkedIn/Facebook feeds while preserving
+          # the top of the actual rendered dbt Charts board: intro, KPIs and
+          # the first chart row. No synthetic redesign is introduced.
+          crop_width = width
+          crop_height = min(height, round(crop_width * 5 / 4))
+          cropped = image.crop((0, 0, crop_width, crop_height))
+          cropped.save(target, format='PNG', optimize=True)
+
+          assert target.stat().st_size > 0
+          print(f'full render: {width}x{height}')
+          print(f'social preview: {cropped.size[0]}x{cropped.size[1]}')
+          PY
 
       - name: Prove a broken dbt ref is rejected
         shell: bash
@@ -83,9 +116,26 @@ jobs:
 
           echo 'Guard verified: broken dbt ref failed as expected.'
 
+      - name: Publish rendered images to repository
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/chart_gallery.png assets/social_preview.png
+
+          if git diff --cached --quiet; then
+            echo 'Rendered images are already current.'
+          else
+            git commit -m 'docs: refresh rendered dbt Charts assets'
+            git push
+          fi
+
       - name: Upload rendered dashboard
         uses: actions/upload-artifact@v4
         with:
           name: dbt-charts-gallery
-          path: renders/chart_gallery.html
+          path: |
+            renders/chart_gallery.html
+            assets/chart_gallery.png
+            assets/social_preview.png
           if-no-files-found: error
