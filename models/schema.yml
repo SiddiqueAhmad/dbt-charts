@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: fct_chart_metrics
+    description: Small chart-ready model used only to demonstrate dbt Charts.
+    columns:
+      - name: event_date
+        tests: [not_null]
+      - name: region
+        tests: [not_null]
+      - name: category
+        tests: [not_null]
+      - name: sessions
+        tests: [not_null]
+      - name: conversions
+        tests: [not_null]
+      - name: revenue
+        tests: [not_null]
+      - name: latency_ms
+        tests: [not_null]
