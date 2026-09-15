@@ -2,6 +2,12 @@
 
 A small, focused playground for exploring **dbt Charts** as dashboards-as-code.
 
+The image below is generated from the actual `charts/chart_gallery.yml` board by CI. It is not a mockup or a separately designed marketing image.
+
+![dbt Charts rendered gallery](assets/social_preview.png)
+
+[View the full rendered gallery](assets/chart_gallery.png)
+
 This repo is intentionally about the charting layer itself:
 
 - declarative dashboard YAML
@@ -11,7 +17,7 @@ This repo is intentionally about the charting layer itself:
 - multiple chart types and layouts
 - local self-hosting with `dct serve`
 - CI validation with dbt + DuckDB + dbt Charts
-- HTML rendering as a build artifact
+- HTML and PNG rendering as build outputs
 
 The sample dataset is deliberately simple so the charts remain the main subject.
 
@@ -26,6 +32,7 @@ The sample dataset is deliberately simple so the charts remain the main subject.
 - donut chart
 - scatter plot
 - heatmap
+- histogram
 - detail table
 - interactive filtering
 
@@ -37,7 +44,7 @@ CSV seed
   -> DuckDB
   -> dbt manifest
   -> dbt Charts
-  -> live dashboard / HTML render
+  -> live dashboard / HTML / PNG
 ```
 
 ## Versions
@@ -76,7 +83,9 @@ dct serve --host 0.0.0.0 --port 19415 --project-dir .
 
 Then open the local server and browse `charts/chart_gallery.yml`.
 
-## Render HTML
+## Render the board
+
+HTML:
 
 ```bash
 mkdir -p renders
@@ -87,6 +96,19 @@ dct render charts/chart_gallery.yml \
   --project-dir .
 ```
 
+PNG:
+
+```bash
+mkdir -p assets
+
+dct render charts/chart_gallery.yml \
+  --format png \
+  --output assets/chart_gallery.png \
+  --project-dir .
+```
+
+CI also creates `assets/social_preview.png`, a 4:5 crop from the real full-board PNG for sharing on social media.
+
 ## CI
 
 GitHub Actions verifies the full path on every change:
@@ -96,9 +118,11 @@ GitHub Actions verifies the full path on every change:
 3. generate the dbt manifest
 4. validate dbt Charts structure and references
 5. validate compiled queries against DuckDB
-6. render the dashboard to HTML
-7. deliberately break a dbt `ref()` and confirm CI catches it
-8. upload the rendered dashboard as an artifact
+6. render the dashboard to HTML and PNG
+7. generate the social preview from the rendered PNG
+8. deliberately break a dbt `ref()` and confirm CI catches it
+9. publish the rendered images back to `assets/` on `main`
+10. upload the HTML and images as a workflow artifact
 
 ## Why this repo exists
 
