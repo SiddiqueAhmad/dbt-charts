@@ -1,0 +1,91 @@
+name: dbt Charts Lab CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dbt and dbt Charts
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            'dbt-charts==0.7.1' \
+            'dbt-core==1.11.8' \
+            'dbt-duckdb==1.10.0'
+
+      - name: Build dbt project and run tests
+        run: dbt build --profiles-dir .
+
+      - name: Generate dbt manifest
+        run: dbt parse --profiles-dir .
+
+      # filter() is supported dbt Charts syntax, but v0.7.1 emits a static
+      # column-inference warning for templated predicates. Warehouse validation
+      # below checks the compiled SQL against the actual DuckDB schema.
+      - name: Validate chart YAML and references
+        run: dct validate charts --project-dir .
+
+      - name: Validate compiled queries against DuckDB
+        run: dct validate charts --warehouse --project-dir .
+
+      - name: Render chart gallery to HTML
+        run: |
+          mkdir -p renders
+          dct render charts/chart_gallery.yml \
+            --format html \
+            --output renders/chart_gallery.html \
+            --project-dir .
+          test -s renders/chart_gallery.html
+
+      - name: Prove a broken dbt ref is rejected
+        shell: bash
+        run: |
+          cp charts/chart_gallery.yml /tmp/chart_gallery.yml
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('charts/chart_gallery.yml')
+          text = path.read_text()
+          needle = "ref('fct_chart_metrics')"
+          assert needle in text, 'expected dbt ref not found in board'
+          path.write_text(text.replace(needle, "ref('missing_model_ci_guard')", 1))
+          PY
+
+          set +e
+          dct validate charts/chart_gallery.yml --project-dir .
+          status=$?
+          set -e
+
+          mv /tmp/chart_gallery.yml charts/chart_gallery.yml
+
+          if [ "$status" -eq 0 ]; then
+            echo 'ERROR: a board with a missing dbt model passed validation.'
+            exit 1
+          fi
+
+          echo 'Guard verified: broken dbt ref failed as expected.'
+
+      - name: Upload rendered dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-charts-gallery
+          path: renders/chart_gallery.html
+          if-no-files-found: error
