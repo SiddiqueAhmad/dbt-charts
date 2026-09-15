@@ -1,0 +1,224 @@
+title: dbt Charts Gallery
+notes: A compact gallery focused on chart types, filters, layout, dbt refs, and rendering.
+source: chart_lab
+
+style:
+  frame:
+    width: 1600
+
+variables:
+  region:
+    input: select
+    options:
+      static: [All, North, South, East, West]
+    default: All
+
+queries:
+  summary: |
+    SELECT
+      SUM(sessions) AS sessions,
+      SUM(conversions) AS conversions,
+      SUM(revenue) AS revenue,
+      AVG(latency_ms) AS avg_latency_ms
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+
+  daily_revenue: |
+    SELECT
+      event_date,
+      category,
+      SUM(revenue) AS revenue
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+
+  daily_sessions: |
+    SELECT
+      event_date,
+      category,
+      SUM(sessions) AS sessions
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+
+  region_revenue: |
+    SELECT
+      region,
+      SUM(revenue) AS revenue
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    GROUP BY 1
+    ORDER BY 2 DESC
+
+  category_revenue: |
+    SELECT
+      category,
+      SUM(revenue) AS revenue
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    GROUP BY 1
+    ORDER BY 2 DESC
+
+  scatter_points: |
+    SELECT
+      event_date,
+      region,
+      category,
+      sessions,
+      conversions,
+      revenue,
+      latency_ms
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+
+  region_category_heatmap: |
+    SELECT
+      region,
+      category,
+      SUM(revenue) AS revenue
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+
+  detail: |
+    SELECT
+      event_date,
+      region,
+      category,
+      sessions,
+      conversions,
+      ROUND(conversions * 100.0 / NULLIF(sessions, 0), 2) AS conversion_rate_pct,
+      revenue,
+      latency_ms
+    FROM {{ ref('fct_chart_metrics') }}
+    WHERE {{ filter('region', region if region != 'All' else None) }}
+    ORDER BY event_date DESC, region, category
+
+charts:
+  revenue_kpi:
+    query: summary
+    type: kpi
+    label: Revenue
+    value: revenue
+    style:
+      value:
+        format: currency_whole
+
+  sessions_kpi:
+    query: summary
+    type: kpi
+    label: Sessions
+    value: sessions
+
+  conversions_kpi:
+    query: summary
+    type: kpi
+    label: Conversions
+    value: conversions
+
+  latency_kpi:
+    query: summary
+    type: kpi
+    label: Avg latency (ms)
+    value: avg_latency_ms
+
+  revenue_line:
+    query: daily_revenue
+    type: line
+    title: Line — revenue over time
+    x: event_date
+    y: revenue
+    color: category
+    style:
+      number_format: currency_whole
+
+  sessions_area:
+    query: daily_sessions
+    type: area
+    title: Area — sessions by category
+    x: event_date
+    y: sessions
+    color: category
+    style:
+      stack: zero
+
+  revenue_bar:
+    query: region_revenue
+    type: bar
+    title: Bar — revenue by region
+    x: region
+    y: revenue
+    sort:
+      by: revenue
+      order: desc
+    style:
+      number_format: currency_whole
+
+  category_donut:
+    query: category_revenue
+    type: donut
+    title: Donut — category share
+    theta: revenue
+    color: category
+
+  revenue_scatter:
+    query: scatter_points
+    type: scatter
+    title: Scatter — sessions vs revenue
+    x: sessions
+    y: revenue
+    size: conversions
+    color: category
+    style:
+      number_format: currency_whole
+
+  revenue_heatmap:
+    query: region_category_heatmap
+    type: heatmap
+    title: Heatmap — region × category
+    x: region
+    y: category
+    color: revenue
+    style:
+      number_format: currency_whole
+
+  latency_histogram:
+    query: scatter_points
+    type: histogram
+    title: Histogram — latency distribution
+    x: latency_ms
+
+  detail_table:
+    query: detail
+    type: table
+    title: Table — underlying rows
+
+rows:
+  - text: |
+      A single YAML board showing how dbt Charts expresses common dashboard
+      patterns around SQL. Use the region selector to re-render the same board
+      without changing the dbt model underneath it.
+
+  - cols:
+      - revenue_kpi
+      - sessions_kpi
+      - conversions_kpi
+      - latency_kpi
+
+  - cols:
+      - revenue_line
+      - sessions_area
+
+  - cols:
+      - revenue_bar
+      - category_donut
+      - latency_histogram
+
+  - cols:
+      - revenue_scatter
+      - revenue_heatmap
+
+  - detail_table
